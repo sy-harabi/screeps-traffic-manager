@@ -1,67 +1,127 @@
 # Screeps Traffic Manager
 
 ## Overview
-The Screeps Traffic Manager is a utility designed to manage and optimize the movement of creeps in the game Screeps. It uses a modified Ford-Fulkerson method to maximize the number of intended movements called by the `Creep.move()` method.
+
+The **Screeps Traffic Manager** is an advanced movement management utility for the game **Screeps**. It employs a modified **Ford-Fulkerson algorithm** to optimize and maximize the movement efficiency of your creeps, reducing congestion and improving overall performance.
 
 ## Features
-1. **Optimized Traffic Management:** Utilizes a modified Ford-Fulkerson method to manage creep traffic efficiently.
-2. **Maximized Movements:** Aims to maximize the number of intended movements, ensuring smoother operation of your creeps.
-3. **Easy Integration:** Simple to integrate with your existing Screeps codebase.
+
+- **Optimized Traffic Management** – Uses a flow-based approach to resolve movement conflicts dynamically.
+- **Near-Optimal Movements** – Provides an efficient solution to minimize movement conflicts.
+- **Seamless Integration** – Works effortlessly with your existing Screeps codebase.
+- **Cost-Based Movement Control** – Supports **CostMatrix** to fine-tune movement restrictions.
 
 ## Installation
-To install the Screeps Traffic Manager, add the necessary files from this repository to your Screeps project.
+
+To install **Screeps Traffic Manager**, include the module in your Screeps project and require it in your script:
+
+```javascript
+const trafficManager = require("screeps-traffic-manager")
+```
 
 ## Usage
-To use the traffic manager in your Screeps code, follow these steps:
 
-1. **Initialization:**
-   At the start of your main code (before calling the loop function), initialize the traffic manager:
-   ```javascript
-   trafficManager.init()
-   ```
-   
-2. **Run Traffic Manager:**
-   Use `Creep.registerMove(target)` instead of `Creep.move(direction)`. target can be direction(1~8), roomPosition or simple coordinates {x,y}
-   At the end of your loop code, for every room that you have creeps in, call the traffic manager's run method:
-   ```javascript
-   for (const roomName in Game.rooms) {
-       const room = Game.rooms[roomName];
-       trafficManager.run(room);
-   }
-   ```
-   Note: It is essential to call trafficManager.run(room) not only for your own rooms but for every room where your creeps are present. This ensures that the traffic management is applied consistently across all areas where your creeps operate.
+### 1. Register Move
 
-3. **Additional features**
+Instead of using `Creep.move(direction)`, register a move request with:
 
-   You can pass `PathFinder.CostMatrix` and `threshold` as parameter of `run()` method to block certain tiles.
+```javascript
+trafficManager.registerMove(creep, target)
+```
 
-   You can use `Creep.setWorkingArea()` method to make creeps to keep range to the target. For example, you can use `Creep.setWorkingArea()` to keep upgraders in range 3 to the controller like below.
-   ```javascript
-   for (const creep of upgraders) {
-      creep.setWorkingArea(controller.pos, 3)
-   }
-   ```
+#### Parameters:
 
-   You can use `Creep.isObstacle()` method to make cetain creeps to not be pushed. (ts version only)
-5. **Example:**
-   Here's an example of how to integrate the traffic manager with your Screeps main script:
-   ```javascript
-   // main.js
-   const trafficManager = require('trafficManager');
-   
-   // Initialize the traffic manager
-   trafficManager.init();
-   
-   module.exports.loop = function () {
-       // Your existing game logic here
-   
-       // Run the traffic manager for each room
-       for (const roomName in Game.rooms) {
-           const room = Game.rooms[roomName];
-           trafficManager.run(room);
-       }
-   }
-   ```
-   
-6. **Contributing:**
-   Contributions are welcome! If you encounter any issues or have suggestions for improvements, please open an issue or submit a pull request.
+- **`creep`** – The `Creep` or `PowerCreep` making the move.
+- **`target`** – Either a `RoomPosition` (near the creep) or a `DirectionConstant`.
+
+#### Example:
+
+```javascript
+// Using a direction
+trafficManager.registerMove(myCreep, RIGHT)
+
+// Using a RoomPosition (must be adjacent to the creep)
+const targetPos = new RoomPosition(15, 10, "W1N1")
+trafficManager.registerMove(myCreep, targetPos)
+```
+
+### 2. Run Traffic Manager
+
+At the end of your loop, for each room with active creeps, execute:
+
+```javascript
+trafficManager.run(room, costs, movementCostThreshold)
+```
+
+#### Parameters:
+
+- **`room`** – The `Room` object where movement is managed.
+- **`costs`** _(optional)_ – A `CostMatrix` for movement decisions.
+- **`movementCostThreshold`** _(default: 255)_ – Creeps will avoid tiles with a cost equal to or greater than this value.
+
+#### Example:
+
+```javascript
+for (const roomName in Game.rooms) {
+  const room = Game.rooms[roomName]
+  trafficManager.run(room)
+}
+```
+
+💡 **Tip:** Ensure `trafficManager.run(room)` is executed in all rooms where your creeps operate to maintain movement consistency.
+
+### 3. Custom Movement Rules
+
+You can pass a `PathFinder.CostMatrix` and `movementCostThreshold` to `run()` to block certain areas. For instance, to make spaces near energy sources less desirable:
+
+```javascript
+const room = Game.rooms["W1N1"]
+const costs = new PathFinder.CostMatrix()
+
+room.find(FIND_SOURCES).forEach((source) => {
+  for (let x = source.pos.x - 1; x <= source.pos.x + 1; x++) {
+    for (let y = source.pos.y - 1; y <= source.pos.y + 1; y++) {
+      costs.set(x, y, 255) // High cost discourages movement
+    }
+  }
+})
+
+trafficManager.run(room, costs)
+```
+
+You can also define a working area for a creep using:
+
+```javascript
+trafficManager.setWorkingArea(creep, pos, range)
+```
+
+#### Parameters:
+
+- **`creep`** – The `Creep` or `PowerCreep` assigned the area.
+- **`pos`** – The center `RoomPosition` of the working area.
+- **`range`** – Maximum movement range from the center.
+
+#### Example:
+
+```javascript
+upgraders.forEach((creep) => trafficManager.setWorkingArea(creep, controller.pos, 3))
+```
+
+### 4. Full Example
+
+Integrate **Traffic Manager** into your main script as follows:
+
+```javascript
+// main.js
+const trafficManager = require("screeps-traffic-manager")
+
+module.exports.loop = function () {
+  // Your game logic
+
+  // Run traffic management
+  for (const roomName in Game.rooms) {
+    const room = Game.rooms[roomName]
+    trafficManager.run(room)
+  }
+}
+```
