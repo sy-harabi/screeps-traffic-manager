@@ -45,6 +45,8 @@ const targetPos = new RoomPosition(15, 10, "W1N1")
 trafficManager.registerMove(myCreep, targetPos)
 ```
 
+If you use monkey-patch version, you can skip this step.
+
 ### 2. Run Traffic Manager
 
 At the end of your loop, for each room with active creeps, execute:
