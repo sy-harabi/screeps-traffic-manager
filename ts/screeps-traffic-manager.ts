@@ -118,6 +118,26 @@ function resolveMovement(creep: Creep): void {
   }
 }
 
+function getDirectionTarget(pos: RoomPosition, direction: DirectionConstant): { x: number; y: number } {
+  const DIRECTION_DELTA: Record<DirectionConstant, { x: number; y: number }> = {
+    [TOP]: { x: 0, y: -1 },
+    [TOP_RIGHT]: { x: 1, y: -1 },
+    [RIGHT]: { x: 1, y: 0 },
+    [BOTTOM_RIGHT]: { x: 1, y: 1 },
+    [BOTTOM]: { x: 0, y: 1 },
+    [BOTTOM_LEFT]: { x: -1, y: 1 },
+    [LEFT]: { x: -1, y: 0 },
+    [TOP_LEFT]: { x: -1, y: -1 },
+  }
+
+  const delta = DIRECTION_DELTA[direction]
+
+  return {
+    x: Math.max(0, Math.min(49, pos.x + delta.x)),
+    y: Math.max(0, Math.min(49, pos.y + delta.y)),
+  }
+}
+
 function getPossibleMoves(
   creep: Creep,
   terrain: RoomTerrain,
@@ -138,6 +158,58 @@ function getPossibleMoves(
 
   ;(creep as any)._possibleMoves = possibleMoves
   return possibleMoves
+}
+
+/**
+ * Determines if a creep can move.
+ *
+ * @param {Creep} creep - The creep to check.
+ * @returns {boolean} - True if the creep can move, false otherwise.
+ */
+function canMove(creep: Creep): boolean {
+  if ((creep as any)._canMove !== undefined) {
+    return (creep as any)._canMove
+  }
+
+  if (creep instanceof PowerCreep) {
+    return ((creep as any)._canMove = true)
+  }
+
+  if (creep.fatigue > 0) {
+    return ((creep as any)._canMove = false)
+  }
+
+  return ((creep as any)._canMove = creep.body.some((part) => part.type === MOVE))
+}
+
+/**
+ * Checks if a move to a given coordinate is valid.
+ *
+ * @param {{x: number, y: number}} coord - The coordinate to check.
+ * @param {RoomTerrain} terrain - The room's terrain data.
+ * @param {CostMatrix | undefined} costs - The cost matrix.
+ * @param {number} movementCostThreshold - Creeps will not move to tiles with cost greater than or equal to this value.
+ * @returns {boolean} - True if the move is valid, false otherwise.
+ */
+function isValidMove(
+  coord: { x: number; y: number },
+  terrain: RoomTerrain,
+  costs: CostMatrix | undefined,
+  movementCostThreshold: number,
+): boolean {
+  if (terrain.get(coord.x, coord.y) === TERRAIN_MASK_WALL) {
+    return false
+  }
+
+  if (coord.x === 0 || coord.x === 49 || coord.y === 0 || coord.y === 49) {
+    return false
+  }
+
+  if (costs && costs.get(coord.x, coord.y) >= movementCostThreshold) {
+    return false
+  }
+
+  return true
 }
 
 function assignCreepToCoordinate(creep: CreepType, coord: Coord, movementMap: MovementMap): void {
