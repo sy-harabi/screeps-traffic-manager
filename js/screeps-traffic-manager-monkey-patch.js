@@ -18,11 +18,37 @@ const DIRECTION_DELTA = {
 }
 
 if (!Creep.prototype._move) {
-  Creep.prototype._move = Creep.prototype.move
+    Creep.prototype._move = Creep.prototype.move
 
-  Creep.prototype.move = function (direciton) {
-    registerMove(this, direciton)
-  }
+    Creep.prototype.move = function (target) {
+        if(!this.my) {
+            return ERR_NOT_OWNER
+        }
+
+        if(this.spawning) {
+            return ERR_BUSY
+        }
+
+        if(target && (target instanceof Creep)) {
+            if(!target.pos.isNearTo(this.pos)) {
+                return ERR_NOT_IN_RANGE;
+            }
+            this._move(target)
+            return OK
+        }
+
+        if(this.fatigue > 0) {
+            return ERR_TIRED
+        }
+
+        if(this.getActiveBodypatys(MOVE)===0) {
+            return ERR_NO_BODYPART
+        }
+
+        registerMove(this, target)
+        
+        return OK;
+    }
 }
 
 /**
