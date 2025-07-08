@@ -41,7 +41,7 @@ if (!Creep.prototype._move) {
             return ERR_TIRED
         }
 
-        if(this.getActiveBodypatys(MOVE)===0) {
+        if(this.getActiveBodyparts(MOVE)===0) {
             return ERR_NO_BODYPART
         }
 
