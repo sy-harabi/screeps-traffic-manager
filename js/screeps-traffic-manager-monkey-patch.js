@@ -17,7 +17,8 @@ const DIRECTION_DELTA = {
   [TOP_LEFT]: { x: -1, y: -1 },
 }
 
-if (!Creep.prototype._move) {
+if (!Creep.prototype._move || !PowerCreep.prototype._move) {
+  PowerCreep.prototype._move = PowerCreep.prototype.move
   Creep.prototype._move = Creep.prototype.move
 
   Creep.prototype.move = function (target) {
@@ -43,6 +44,20 @@ if (!Creep.prototype._move) {
 
     if (this.getActiveBodyparts(MOVE) === 0) {
       return ERR_NO_BODYPART
+    }
+
+    registerMove(this, target)
+
+    return OK
+  }
+
+  PowerCreep.prototype.move = function (target) {
+    if (!this.my) {
+      return ERR_NOT_OWNER
+    }
+
+    if (!this.pos) {
+      return ERR_BUSY
     }
 
     registerMove(this, target)
