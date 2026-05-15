@@ -7,6 +7,8 @@ The **Screeps Traffic Manager** is an advanced movement management utility for t
 ## Features
 
 - **Optimized Traffic Management** – Uses a flow-based approach to resolve movement conflicts dynamically.
+- **Priority-Based Displacement** – Supports priority weights so critical creeps (like heavy haulers) can push utility creeps out of the way.
+- **High Performance** – Employs deterministic hash-based shuffling to maintain fluid movement with near-zero CPU overhead.
 - **Near-Optimal Movements** – Provides an efficient solution to minimize movement conflicts.
 - **Seamless Integration** – Works effortlessly with your existing Screeps codebase.
 - **Cost-Based Movement Control** – Supports **CostMatrix** to fine-tune movement restrictions.
@@ -26,26 +28,30 @@ const trafficManager = require("screeps-traffic-manager")
 Instead of using `Creep.move(direction)`, register a move request with:
 
 ```javascript
-trafficManager.registerMove(creep, target)
+trafficManager.registerMove(creep, target, [priority = 1])
 ```
 
 #### Parameters:
 
 - **`creep`** – The `Creep` or `PowerCreep` making the move.
 - **`target`** – Either a `RoomPosition` (near the creep) or a `DirectionConstant`.
+- **`priority`** _(optional, default: 1)_ – An integer weight representing how strongly this creep can push others.
 
 #### Example:
 
 ```javascript
-// Using a direction
+// Using a direction with default priority
 trafficManager.registerMove(myCreep, RIGHT)
+
+// High-priority move (e.g. for a Hauler that needs to push through workers)
+trafficManager.registerMove(hauler, RIGHT, 10)
 
 // Using a RoomPosition (must be adjacent to the creep)
 const targetPos = new RoomPosition(15, 10, "W1N1")
 trafficManager.registerMove(myCreep, targetPos)
 ```
 
-You can skip this step If you use monkey-patch version.
+You can skip this step if you use the monkey-patch version (which also supports priority via `creep.move(direction, priority)`).
 
 ### 2. Run Traffic Manager
 
