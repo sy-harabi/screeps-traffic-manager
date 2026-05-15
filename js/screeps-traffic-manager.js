@@ -341,6 +341,16 @@ function getIntendedPackedCoord(creep) {
   return creep._intendedPackedCoord
 }
 
+function getIntendedCoord(creep) {
+  const intendedPackedCoord = getIntendedPackedCoord(creep)
+
+  if (!intendedPackedCoord) {
+    return null
+  }
+
+  return unpackCoordinates(intendedPackedCoord)
+}
+
 /**
  * Gets the matched packed coordinate of a creep.
  *
@@ -386,6 +396,7 @@ const trafficManager = {
   registerMove,
   setWorkingArea,
   run,
+  getIntendedCoord,
 }
 
 module.exports = trafficManager
