@@ -217,7 +217,7 @@ function getPossibleMoves(creep, terrain, costs, movementCostThreshold) {
   const offset = (Game.time + hash) % 8
 
   for (let i = 0; i < 8; i++) {
-    const delta = DIRECTIONS[(i + offset) % 8 + 1]
+    const delta = DIRECTIONS[((i + offset) % 8) + 1]
     const coord = { x: creep.pos.x + delta.x, y: creep.pos.y + delta.y }
 
     if (!isValidMove(coord, terrain, costs, movementCostThreshold)) continue
