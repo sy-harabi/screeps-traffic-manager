@@ -7,16 +7,17 @@ import { Coord } from './types';
 let movementMap: Map<number, Creep>;
 let visitedCreeps: { [creepName: string]: boolean };
 
-const directionDelta: { [key in DirectionConstant]: { x: number; y: number } } = {
-    [TOP]: { x: 0, y: -1 },
-    [TOP_RIGHT]: { x: 1, y: -1 },
-    [RIGHT]: { x: 1, y: 0 },
-    [BOTTOM_RIGHT]: { x: 1, y: 1 },
-    [BOTTOM]: { x: 0, y: 1 },
-    [BOTTOM_LEFT]: { x: -1, y: 1 },
-    [LEFT]: { x: -1, y: 0 },
-    [TOP_LEFT]: { x: -1, y: -1 },
-};
+const DIRECTIONS: (Coord | null)[] = [
+    null,
+    { x: 0, y: -1 },
+    { x: 1, y: -1 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+    { x: -1, y: 1 },
+    { x: -1, y: 0 },
+    { x: -1, y: -1 },
+];
 const directionArrow: { [key in DirectionConstant]: string } = {
     [TOP]: '⬆️',
     [TOP_RIGHT]: '↗️',
@@ -30,11 +31,11 @@ const directionArrow: { [key in DirectionConstant]: string } = {
 
 export const trafficManagerSafe = {
     init() {
-        Creep.prototype.registerMove = function(target) {
+        Creep.prototype.registerMove = function (target: DirectionConstant | RoomPosition | Coord, priority: number = 1) {
             let targetPosition;
 
             if (Number.isInteger(target)) {
-                const deltaCoords = directionDelta[<DirectionConstant>target];
+                const deltaCoords = DIRECTIONS[<DirectionConstant>target]!;
                 targetPosition = {
                     x: Math.max(0, Math.min(49, this.pos.x + deltaCoords.x)),
                     y: Math.max(0, Math.min(49, this.pos.y + deltaCoords.y)),
@@ -50,6 +51,7 @@ export const trafficManagerSafe = {
             );
             const packedCoord = packCoordinates(<Coord>targetPosition);
             this._intendedPackedCoord = packedCoord;
+            (this as any)._movePriority = Math.floor(priority);
         };
     },
 
@@ -103,6 +105,10 @@ export const trafficManagerSafe = {
     },
 };
 
+function getMovePriority(creep: Creep): number {
+    return (creep as any)._movePriority !== undefined ? (creep as any)._movePriority : 1;
+}
+
 function depthFirstSearch(creep: Creep, currentScore: number | undefined = 0): number {
     visitedCreeps[creep.name] = true;
 
@@ -111,7 +117,7 @@ function depthFirstSearch(creep: Creep, currentScore: number | undefined = 0): n
         const packedCoord = packCoordinates(coord);
 
         if (creep._intendedPackedCoord === packedCoord) {
-            score++;
+            score += getMovePriority(creep);
         }
 
         const occupyingCreep = movementMap.get(packedCoord);
@@ -125,7 +131,7 @@ function depthFirstSearch(creep: Creep, currentScore: number | undefined = 0): n
 
         if (!visitedCreeps[occupyingCreep.name]) {
             if (occupyingCreep._intendedPackedCoord === packedCoord) {
-                score--;
+                score -= getMovePriority(occupyingCreep);
             }
 
             const result = depthFirstSearch(occupyingCreep, score);
@@ -158,9 +164,17 @@ function getPossibleMoves(creep: Creep) {
         return possibleMoves;
     }
 
-    const adjacentPositions = Object.values(directionDelta).map((delta) => {
-        return { x: creep.pos.x + delta.x, y: creep.pos.y + delta.y };
-    });
+    let hash = 0;
+    if (creep.name) {
+        for (let i = 0; i < creep.name.length; i++) hash += creep.name.charCodeAt(i);
+    }
+    const offset = (Game.time + hash) % 8;
+
+    const adjacentPositions = [];
+    for (let i = 0; i < 8; i++) {
+        const delta = DIRECTIONS[(i + offset) % 8 + 1]!;
+        adjacentPositions.push({ x: creep.pos.x + delta.x, y: creep.pos.y + delta.y });
+    }
 
     const roomTerrain = Game.map.getRoomTerrain(creep.room.name);
 
@@ -174,7 +188,7 @@ function getPossibleMoves(creep: Creep) {
         possibleMoves.push(adjacentPos);
     }
 
-    return _.shuffle(possibleMoves);
+    return possibleMoves;
 }
 
 function assignCreepToCoordinate(creep: Creep, coord: Coord) {

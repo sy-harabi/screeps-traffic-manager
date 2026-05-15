@@ -12,21 +12,27 @@ type CreepType = Creep | PowerCreep
 
 type MovementMap = Map<number, CreepType>
 
-const DIRECTION_DELTA: Record<DirectionConstant, Coord> = {
-  [TOP]: { x: 0, y: -1 },
-  [TOP_RIGHT]: { x: 1, y: -1 },
-  [RIGHT]: { x: 1, y: 0 },
-  [BOTTOM_RIGHT]: { x: 1, y: 1 },
-  [BOTTOM]: { x: 0, y: 1 },
-  [BOTTOM_LEFT]: { x: -1, y: 1 },
-  [LEFT]: { x: -1, y: 0 },
-  [TOP_LEFT]: { x: -1, y: -1 },
-}
+const DIRECTIONS: (Coord | null)[] = [
+  null,
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+]
 
-function registerMove(creep: CreepType, target: RoomPosition | DirectionConstant): void {
+function registerMove(creep: CreepType, target: RoomPosition | DirectionConstant, priority: number = 1): void {
   const targetCoord: Coord =
     typeof target === "number" ? getDirectionTarget(creep.pos, target) : { x: target.x, y: target.y }
   ;(creep as any)._intendedPackedCoord = packCoordinates(targetCoord)
+  ;(creep as any)._movePriority = Math.floor(priority)
+}
+
+function getMovePriority(creep: CreepType): number {
+  return (creep as any)._movePriority !== undefined ? (creep as any)._movePriority : 1
 }
 
 function setWorkingArea(creep: CreepType, pos: RoomPosition, range: number): void {
@@ -82,7 +88,7 @@ function depthFirstSearch(
 
   for (const coord of [...emptyTiles, ...occupiedTiles]) {
     const packedCoord = packCoordinates(coord)
-    if (getIntendedPackedCoord(creep) === packedCoord) score++
+    if (getIntendedPackedCoord(creep) === packedCoord) score += getMovePriority(creep)
 
     const occupyingCreep = movementMap.get(packedCoord)
     if (!occupyingCreep) {
@@ -91,7 +97,7 @@ function depthFirstSearch(
     }
 
     if (!visitedCreeps.has(occupyingCreep.name)) {
-      if (getIntendedPackedCoord(occupyingCreep) === packedCoord) score--
+      if (getIntendedPackedCoord(occupyingCreep) === packedCoord) score -= getMovePriority(occupyingCreep as CreepType)
       const result = depthFirstSearch(
         occupyingCreep,
         score,
@@ -119,18 +125,7 @@ function resolveMovement(creep: Creep): void {
 }
 
 function getDirectionTarget(pos: RoomPosition, direction: DirectionConstant): { x: number; y: number } {
-  const DIRECTION_DELTA: Record<DirectionConstant, { x: number; y: number }> = {
-    [TOP]: { x: 0, y: -1 },
-    [TOP_RIGHT]: { x: 1, y: -1 },
-    [RIGHT]: { x: 1, y: 0 },
-    [BOTTOM_RIGHT]: { x: 1, y: 1 },
-    [BOTTOM]: { x: 0, y: 1 },
-    [BOTTOM_LEFT]: { x: -1, y: 1 },
-    [LEFT]: { x: -1, y: 0 },
-    [TOP_LEFT]: { x: -1, y: -1 },
-  }
-
-  const delta = DIRECTION_DELTA[direction]
+  const delta = DIRECTIONS[direction]!
 
   return {
     x: Math.max(0, Math.min(49, pos.x + delta.x)),
@@ -151,7 +146,14 @@ function getPossibleMoves(
   const intendedPackedCoord = getIntendedPackedCoord(creep)
   if (intendedPackedCoord) return [unpackCoordinates(intendedPackedCoord)]
 
-  for (const delta of Object.values(DIRECTION_DELTA).sort(() => Math.random() - 0.5)) {
+  let hash = 0
+  if (creep.name) {
+    for (let i = 0; i < creep.name.length; i++) hash += creep.name.charCodeAt(i)
+  }
+  const offset = (Game.time + hash) % 8
+
+  for (let i = 0; i < 8; i++) {
+    const delta = DIRECTIONS[(i + offset) % 8 + 1]!
     const coord = { x: creep.pos.x + delta.x, y: creep.pos.y + delta.y }
     if (isValidMove(coord, terrain, costs, movementCostThreshold)) possibleMoves.push(coord)
   }

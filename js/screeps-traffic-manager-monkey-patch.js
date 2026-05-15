@@ -6,22 +6,23 @@
  * With this version, you don't need to registerMove() on your own. Just call trafficManager.run() for every room at the end of the loop.
  */
 
-const DIRECTION_DELTA = {
-  [TOP]: { x: 0, y: -1 },
-  [TOP_RIGHT]: { x: 1, y: -1 },
-  [RIGHT]: { x: 1, y: 0 },
-  [BOTTOM_RIGHT]: { x: 1, y: 1 },
-  [BOTTOM]: { x: 0, y: 1 },
-  [BOTTOM_LEFT]: { x: -1, y: 1 },
-  [LEFT]: { x: -1, y: 0 },
-  [TOP_LEFT]: { x: -1, y: -1 },
-}
+const DIRECTIONS = [
+  null,
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+]
 
 if (!Creep.prototype._move || !PowerCreep.prototype._move) {
   PowerCreep.prototype._move = PowerCreep.prototype.move
   Creep.prototype._move = Creep.prototype.move
 
-  Creep.prototype.move = function (target) {
+  Creep.prototype.move = function (target, priority = 1) {
     if (!this.my) {
       return ERR_NOT_OWNER
     }
@@ -46,12 +47,12 @@ if (!Creep.prototype._move || !PowerCreep.prototype._move) {
       return ERR_NO_BODYPART
     }
 
-    registerMove(this, target)
+    registerMove(this, target, priority)
 
     return OK
   }
 
-  PowerCreep.prototype.move = function (target) {
+  PowerCreep.prototype.move = function (target, priority = 1) {
     if (!this.my) {
       return ERR_NOT_OWNER
     }
@@ -60,7 +61,7 @@ if (!Creep.prototype._move || !PowerCreep.prototype._move) {
       return ERR_BUSY
     }
 
-    registerMove(this, target)
+    registerMove(this, target, priority)
 
     return OK
   }
@@ -72,10 +73,21 @@ if (!Creep.prototype._move || !PowerCreep.prototype._move) {
  * @param {Creep|PowerCreep} creep - The creep whose movement is being registered.
  * @param {RoomPosition|DirectionConstant} target - The target position or movement direction.
  */
-function registerMove(creep, target) {
+function registerMove(creep, target, priority = 1) {
   let targetCoord = typeof target === "number" ? getDirectionTarget(creep.pos, target) : target
 
   creep._intendedPackedCoord = packCoordinates(targetCoord)
+  creep._movePriority = Math.floor(priority)
+}
+
+/**
+ * Gets the movement priority of a creep.
+ *
+ * @param {Creep} creep - The creep to retrieve priority for.
+ * @returns {number} - The priority, defaults to 1.
+ */
+function getMovePriority(creep) {
+  return creep._movePriority !== undefined ? creep._movePriority : 1
 }
 
 /**
@@ -168,7 +180,7 @@ function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshol
     const packedCoord = packCoordinates(coord)
 
     if (getIntendedPackedCoord(creep) === packedCoord) {
-      score++
+      score += getMovePriority(creep)
     }
 
     const occupyingCreep = movementMap.get(packedCoord)
@@ -182,7 +194,7 @@ function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshol
 
     if (!visitedCreeps.has(occupyingCreep.name)) {
       if (getIntendedPackedCoord(occupyingCreep) === packedCoord) {
-        score--
+        score -= getMovePriority(occupyingCreep)
       }
 
       const result = depthFirstSearch(
@@ -249,7 +261,14 @@ function getPossibleMoves(creep, terrain, costs, movementCostThreshold) {
 
   const outOfWorkingArea = []
 
-  for (const delta of Object.values(DIRECTION_DELTA).sort((a, b) => Math.random() - 0.5)) {
+  let hash = 0
+  if (creep.name) {
+    for (let i = 0; i < creep.name.length; i++) hash += creep.name.charCodeAt(i)
+  }
+  const offset = (Game.time + hash) % 8
+
+  for (let i = 0; i < 8; i++) {
+    const delta = DIRECTIONS[(i + offset) % 8 + 1]
     const coord = { x: creep.pos.x + delta.x, y: creep.pos.y + delta.y }
 
     if (!isValidMove(coord, terrain, costs, movementCostThreshold)) continue
@@ -340,8 +359,8 @@ function assignCreepToCoordinate(creep, coord, movementMap) {
  * @param {DirectionConstant} direction - The direction to move.
  * @returns {{x: number, y: number}} - The new coordinates after moving in the given direction.
  */
-function getDirectionTarget(pos, direciton) {
-  const delta = DIRECTION_DELTA[direciton]
+function getDirectionTarget(pos, direction) {
+  const delta = DIRECTIONS[direction]
   const targetCoord = {
     x: Math.max(0, Math.min(49, pos.x + delta.x)),
     y: Math.max(0, Math.min(49, pos.y + delta.y)),
