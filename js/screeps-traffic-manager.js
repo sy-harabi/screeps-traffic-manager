@@ -84,7 +84,8 @@ function run(room, costs, movementCostThreshold = 255) {
 
     deleteMatchedPackedCoord(creep)
 
-    if (depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, true) > 0) continue
+    if (depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, true) > 0)
+      continue
 
     assignCreepToCoordinate(creep, creep.pos, movementMap)
   }
@@ -104,7 +105,16 @@ function run(room, costs, movementCostThreshold = 255) {
  * @param {Set} visitedCreeps - Set of visited creeps to prevent loops.
  * @returns {number} - A score indicating movement success.
  */
-function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, isRoot = false) {
+function depthFirstSearch(
+  creep,
+  score = 0,
+  terrain,
+  costs,
+  movementCostThreshold,
+  movementMap,
+  visitedCreeps,
+  isRoot = false,
+) {
   visitedCreeps.add(creep.name)
 
   if (!creep.my) {
@@ -129,7 +139,16 @@ function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshol
       if (getIntendedPackedCoord(occupyingCreep) === intendedPackedCoord) {
         nextScore -= getMovePriority(occupyingCreep)
       }
-      const result = depthFirstSearch(occupyingCreep, nextScore, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, false)
+      const result = depthFirstSearch(
+        occupyingCreep,
+        nextScore,
+        terrain,
+        costs,
+        movementCostThreshold,
+        movementMap,
+        visitedCreeps,
+        false,
+      )
       if (result > 0) {
         assignCreepToCoordinate(creep, intendedCoord, movementMap)
         return result
@@ -173,7 +192,16 @@ function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshol
         nextScore -= getMovePriority(occupyingCreep)
       }
 
-      const result = depthFirstSearch(occupyingCreep, nextScore, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, false)
+      const result = depthFirstSearch(
+        occupyingCreep,
+        nextScore,
+        terrain,
+        costs,
+        movementCostThreshold,
+        movementMap,
+        visitedCreeps,
+        false,
+      )
       if (result > 0) {
         assignCreepToCoordinate(creep, coord, movementMap)
         return result
@@ -233,7 +261,7 @@ function getPossibleMoves(creep, terrain, costs, movementCostThreshold) {
 
     if (!targetDirection) {
       const offset = (Game.time + hash) % 8
-      for (let i = 0; i < 8; i++) directionOrder.push((i + offset) % 8 + 1)
+      for (let i = 0; i < 8; i++) directionOrder.push(((i + offset) % 8) + 1)
     } else {
       const distances = [0, 1, 2, 3, 4]
       const hashBool = (Game.time + hash) % 2 === 0
@@ -261,7 +289,7 @@ function getPossibleMoves(creep, terrain, costs, movementCostThreshold) {
     }
   } else {
     const offset = (Game.time + hash) % 8
-    for (let i = 0; i < 8; i++) directionOrder.push((i + offset) % 8 + 1)
+    for (let i = 0; i < 8; i++) directionOrder.push(((i + offset) % 8) + 1)
   }
 
   const outOfWorkingArea = []
@@ -391,6 +419,16 @@ function getIntendedPackedCoord(creep) {
   return creep._intendedPackedCoord
 }
 
+function getIntendedCoord(creep) {
+  const intendedPackedCoord = getIntendedPackedCoord(creep)
+
+  if (!intendedPackedCoord) {
+    return null
+  }
+
+  return unpackCoordinates(intendedPackedCoord)
+}
+
 /**
  * Gets the matched packed coordinate of a creep.
  *
@@ -436,6 +474,7 @@ const trafficManager = {
   registerMove,
   setWorkingArea,
   run,
+  getIntendedCoord,
 }
 
 module.exports = trafficManager
