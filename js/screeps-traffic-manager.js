@@ -84,7 +84,7 @@ function run(room, costs, movementCostThreshold = 255) {
 
     deleteMatchedPackedCoord(creep)
 
-    if (depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps) > 0) continue
+    if (depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, true) > 0) continue
 
     assignCreepToCoordinate(creep, creep.pos, movementMap)
   }
@@ -104,19 +104,51 @@ function run(room, costs, movementCostThreshold = 255) {
  * @param {Set} visitedCreeps - Set of visited creeps to prevent loops.
  * @returns {number} - A score indicating movement success.
  */
-function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps) {
+function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, isRoot = false) {
   visitedCreeps.add(creep.name)
 
   if (!creep.my) {
     return -Infinity
   }
 
-  const emptyTiles = []
+  const intendedPackedCoord = getIntendedPackedCoord(creep)
 
+  // Phase 1: Try intended coordinate first
+  if (intendedPackedCoord) {
+    const intendedCoord = unpackCoordinates(intendedPackedCoord)
+    let tempScore = score + getMovePriority(creep)
+    const occupyingCreep = movementMap.get(intendedPackedCoord)
+
+    if (!occupyingCreep) {
+      if (tempScore > 0) {
+        assignCreepToCoordinate(creep, intendedCoord, movementMap)
+        return tempScore
+      }
+    } else if (!visitedCreeps.has(occupyingCreep.name)) {
+      let nextScore = tempScore
+      if (getIntendedPackedCoord(occupyingCreep) === intendedPackedCoord) {
+        nextScore -= getMovePriority(occupyingCreep)
+      }
+      const result = depthFirstSearch(occupyingCreep, nextScore, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, false)
+      if (result > 0) {
+        assignCreepToCoordinate(creep, intendedCoord, movementMap)
+        return result
+      }
+    }
+  }
+
+  // Phase 2: If root creep, do NOT side-step.
+  if (isRoot) return -Infinity
+
+  // Phase 3: Side-stepping fallback (for idle creeps, or pushed busy creeps)
+  const emptyTiles = []
   const occupiedTiles = []
 
   for (const coord of getPossibleMoves(creep, terrain, costs, movementCostThreshold)) {
-    const occupied = movementMap.get(packCoordinates(coord))
+    const packedCoord = packCoordinates(coord)
+    if (packedCoord === intendedPackedCoord) continue // Already tried this
+
+    const occupied = movementMap.get(packedCoord)
 
     if (occupied) {
       occupiedTiles.push(coord)
@@ -127,35 +159,21 @@ function depthFirstSearch(creep, score = 0, terrain, costs, movementCostThreshol
 
   for (const coord of [...emptyTiles, ...occupiedTiles]) {
     const packedCoord = packCoordinates(coord)
-
-    if (getIntendedPackedCoord(creep) === packedCoord) {
-      score += getMovePriority(creep)
-    }
-
+    let tempScore = score // Does not increment because it's not the intended tile
     const occupyingCreep = movementMap.get(packedCoord)
 
     if (!occupyingCreep) {
-      if (score > 0) {
+      if (tempScore > 0) {
         assignCreepToCoordinate(creep, coord, movementMap)
+        return tempScore
       }
-      return score
-    }
-
-    if (!visitedCreeps.has(occupyingCreep.name)) {
+    } else if (!visitedCreeps.has(occupyingCreep.name)) {
+      let nextScore = tempScore
       if (getIntendedPackedCoord(occupyingCreep) === packedCoord) {
-        score -= getMovePriority(occupyingCreep)
+        nextScore -= getMovePriority(occupyingCreep)
       }
 
-      const result = depthFirstSearch(
-        occupyingCreep,
-        score,
-        terrain,
-        costs,
-        movementCostThreshold,
-        movementMap,
-        visitedCreeps,
-      )
-
+      const result = depthFirstSearch(occupyingCreep, nextScore, terrain, costs, movementCostThreshold, movementMap, visitedCreeps, false)
       if (result > 0) {
         assignCreepToCoordinate(creep, coord, movementMap)
         return result
@@ -202,22 +220,54 @@ function getPossibleMoves(creep, terrain, costs, movementCostThreshold) {
 
   const intendedPackedCoord = getIntendedPackedCoord(creep)
 
-  if (intendedPackedCoord) {
-    possibleMoves.push(unpackCoordinates(intendedPackedCoord))
-    creep._possibleMoves = possibleMoves
-    return possibleMoves
-  }
-
-  const outOfWorkingArea = []
-
   let hash = 0
   if (creep.name) {
     for (let i = 0; i < creep.name.length; i++) hash += creep.name.charCodeAt(i)
   }
-  const offset = (Game.time + hash) % 8
 
-  for (let i = 0; i < 8; i++) {
-    const delta = DIRECTIONS[(i + offset) % 8 + 1]
+  const directionOrder = []
+
+  if (intendedPackedCoord) {
+    const intendedCoord = unpackCoordinates(intendedPackedCoord)
+    const targetDirection = creep.pos.getDirectionTo(intendedCoord.x, intendedCoord.y)
+
+    if (!targetDirection) {
+      const offset = (Game.time + hash) % 8
+      for (let i = 0; i < 8; i++) directionOrder.push((i + offset) % 8 + 1)
+    } else {
+      const distances = [0, 1, 2, 3, 4]
+      const hashBool = (Game.time + hash) % 2 === 0
+
+      for (const dist of distances) {
+        if (dist === 0) {
+          directionOrder.push(targetDirection)
+        } else if (dist === 4) {
+          let opp = targetDirection + 4
+          if (opp > 8) opp -= 8
+          directionOrder.push(opp)
+        } else {
+          let d1 = targetDirection + dist
+          if (d1 > 8) d1 -= 8
+          let d2 = targetDirection - dist
+          if (d2 < 1) d2 += 8
+
+          if (hashBool) {
+            directionOrder.push(d1, d2)
+          } else {
+            directionOrder.push(d2, d1)
+          }
+        }
+      }
+    }
+  } else {
+    const offset = (Game.time + hash) % 8
+    for (let i = 0; i < 8; i++) directionOrder.push((i + offset) % 8 + 1)
+  }
+
+  const outOfWorkingArea = []
+
+  for (const dir of directionOrder) {
+    const delta = DIRECTIONS[dir]
     const coord = { x: creep.pos.x + delta.x, y: creep.pos.y + delta.y }
 
     if (!isValidMove(coord, terrain, costs, movementCostThreshold)) continue
